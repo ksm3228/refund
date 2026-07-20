@@ -586,13 +586,15 @@ input,select{font-family:inherit;}
 // ward-app-257c4 프로젝트의 웹 설정값을 그대로 사용합니다.
 // (다른 앱들과 동일한 firebaseConfig — apiKey 등은 기존 프로젝트 설정 그대로 붙여넣으세요)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyC9k6iGUcNObjxQGtlVOuP5_YSpErT9DtA",
   authDomain: "ward-app-257c4.firebaseapp.com",
+  databaseURL: "https://ward-app-257c4-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "ward-app-257c4",
-  storageBucket: "ward-app-257c4.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  storageBucket: "ward-app-257c4.firebasestorage.app",
+  messagingSenderId: "261869081149",
+  appId: "1:261869081149:web:68ca329cc3ed9a0f861054"
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
