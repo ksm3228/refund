@@ -265,6 +265,13 @@ input,select{font-family:inherit;}
 .history-row .amt{font-family:'JetBrains Mono',monospace; font-weight:600; text-align:right;}
 .history-row .amt.refund{color:var(--jade);}
 .history-row .amt.due{color:var(--clay);}
+.past-box{border-top:1px solid #f0efe8; margin:6px 0 12px; padding-top:10px;}
+.past-box summary{cursor:pointer; font-size:12.5px; font-weight:600; color:#3d4256;}
+.past-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:10px;}
+.past-grid label{display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--muted); font-weight:600;}
+.past-grid input{border:1px solid #dcdbd3; border-radius:8px; padding:8px 10px; font-size:13px; background:#fbfaf6; text-align:right; font-family:'JetBrains Mono',monospace; width:100%;}
+.past-grid input:focus{outline:2px solid var(--gold); border-color:var(--gold);}
+.past-note{font-size:11px; color:var(--muted); margin-top:8px;}
 .history-empty{color:var(--muted); font-size:13px; padding:16px 0; text-align:center;}
 .disclaimer{
   color:#aab0c9; font-size:11.5px; line-height:1.7; text-align:center; margin-top:26px; padding:0 12px;
@@ -292,7 +299,7 @@ input,select{font-family:inherit;}
     <div class="brand">
       <div class="mark">稅</div>
       <div>
-        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.1</span></h1>
+        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.2</span></h1>
         <span>13월의 월급, 미리 계산해보기</span>
       </div>
     </div>
@@ -313,6 +320,11 @@ input,select{font-family:inherit;}
     <h2>연도별 비교 <span style="font-weight:400;font-size:12px;opacity:.7;">(실제 환급·납부 시점 기준)</span></h2>
     <div class="history-card">
       <div id="historyList"><div class="history-empty">저장된 연도 데이터가 없습니다.</div></div>
+      <details class="past-box">
+        <summary>과거 수령액 직접 입력 (2021~2026년 수령분)</summary>
+        <div class="past-grid" id="pastGrid"></div>
+        <div class="past-note">실제로 환급받은 연도 기준으로 입력하세요 · 입력 즉시 자동 저장 · 납부했다면 앞에 - 를 붙이세요</div>
+      </details>
     </div>
   </div>
 
@@ -1351,10 +1363,46 @@ document.querySelectorAll('.editable-sub').forEach(el => {
 });
 
 let historyCache = [];
+let pastRefunds = {};   // { '2021': 금액(환급 +, 납부 -) } — 수령연도 기준 수동 입력
 let liveDiff = 0;
+const PAST_YEARS = [2021,2022,2023,2024,2025,2026];
+
+function pastDocRef(){
+  return db.collection('users').doc(currentUid).collection('settings').doc('pastRefunds');
+}
+
+function buildPastInputs(){
+  const grid = document.getElementById('pastGrid');
+  if (!grid || grid.childElementCount) return;
+  grid.innerHTML = PAST_YEARS.map(y => `<label>${y}년 수령액<input type="text" inputmode="numeric" data-past="${y}" placeholder="0"></label>`).join('');
+  let timer = null;
+  grid.querySelectorAll('input[data-past]').forEach(el => {
+    el.addEventListener('input', () => {
+      const neg = el.value.trim().startsWith('-');
+      const raw = Math.abs(num(el.value));
+      el.value = raw ? (neg ? '-' : '') + raw.toLocaleString('ko-KR') : (neg ? '-' : '');
+      const y = el.getAttribute('data-past');
+      if (raw) pastRefunds[y] = neg ? -raw : raw; else delete pastRefunds[y];
+      renderHistoryBars();
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try { await pastDocRef().set(pastRefunds); }
+        catch(e){ console.error('[YEAREND-TAX] savePast error:', e.message); }
+      }, 500);
+    });
+  });
+}
+
+function fillPastInputs(){
+  document.querySelectorAll('#pastGrid input[data-past]').forEach(el => {
+    const v = pastRefunds[el.getAttribute('data-past')];
+    el.value = v ? Number(v).toLocaleString('ko-KR') : '';
+  });
+}
 
 async function loadHistory(){
   const list = document.getElementById('historyList');
+  buildPastInputs();
   try {
     const snap = await db.collection('users').doc(currentUid).collection('yearendTax').orderBy('updatedAt').get();
     historyCache = snap.docs.map(doc => ({ year: doc.id, diff: doc.data().result?.diff || 0 }));
@@ -1362,16 +1410,30 @@ async function loadHistory(){
     list.innerHTML = '<div class="history-empty">이력을 불러오지 못했습니다.</div>';
     return;
   }
+  try {
+    const ps = await pastDocRef().get();
+    pastRefunds = ps.exists ? (ps.data() || {}) : {};
+  } catch(e){
+    console.error('[YEAREND-TAX] loadPast error:', e.message);
+  }
+  fillPastInputs();
   renderHistoryBars();
 }
 
 function renderHistoryBars(){
   const list = document.getElementById('historyList');
   if (!list) return;
-  // 현재 선택된 연도는 저장 여부와 무관하게 입력창의 실시간 금액을 반영
-  const merged = historyCache.filter(h => h.year !== String(state.year));
-  merged.push({ year: String(state.year), diff: liveDiff });
-  merged.sort((a, b) => Number(a.year) - Number(b.year));
+  // 행 = 수령연도 기준. diff<=0 이면 환급. (수동입력은 환급 +, 납부 - 로 받아 diff로 변환)
+  const rowsMap = {};
+  const cur = String(state.year);
+  historyCache.forEach(h => { if (h.year !== cur) rowsMap[Number(h.year)+1] = { payYear:Number(h.year)+1, base:h.year, diff:h.diff, tag:'' }; });
+  rowsMap[Number(cur)+1] = { payYear:Number(cur)+1, base:cur, diff:liveDiff,
+    tag: historyCache.some(c => c.year === cur) ? '' : ' · 미저장' };
+  Object.keys(pastRefunds).forEach(y => {
+    const amt = Number(pastRefunds[y]) || 0;
+    if (amt) rowsMap[Number(y)] = { payYear:Number(y), base:null, diff:-amt, tag:'' };  // 수동입력 우선
+  });
+  const merged = Object.values(rowsMap).sort((a,b) => a.payYear - b.payYear);
 
   if (merged.length === 0){
     list.innerHTML = '<div class="history-empty">저장된 연도 데이터가 없습니다.</div>';
@@ -1383,10 +1445,9 @@ function renderHistoryBars(){
   const rows = merged.map(h => {
     const isRefund = h.diff <= 0;
     const pct = Math.min(100, (Math.abs(h.diff) / maxAbs) * 100);
-    const liveTag = (h.year === String(state.year) && !historyCache.some(c => c.year === h.year))
-      ? ' · 미저장' : '';
+    const sub = h.base ? h.base + '년 귀속' + h.tag : '직접 입력';
     return `<div class="history-row">
-        <div class="yr">${Number(h.year) + 1}<small>${h.year}년 귀속${liveTag}</small></div>
+        <div class="yr">${h.payYear}<small>${sub}</small></div>
         <div class="bar-track"><div class="bar-fill ${isRefund ? 'refund' : 'due'}" style="width:${pct}%"></div></div>
         <div class="amt ${isRefund ? 'refund' : 'due'}">${isRefund ? '환급' : '납부'}</div>
         <div class="amt ${isRefund ? 'refund' : 'due'}">${fmt(Math.abs(h.diff))}</div>
