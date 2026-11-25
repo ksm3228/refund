@@ -304,7 +304,7 @@ input,select{font-family:inherit;}
     <div class="brand">
       <div class="mark">稅</div>
       <div>
-        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.4</span></h1>
+        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.5</span></h1>
         <span>13월의 월급, 미리 계산해보기</span>
       </div>
     </div>
@@ -447,6 +447,16 @@ input,select{font-family:inherit;}
                 <option value="3">셋째 이상</option>
               </select>
               <div class="credit-preview mono" id="cp_birthAdopt">세액공제 0원</div>
+            </div>
+            <div class="field full" style="background:#f7f6f1; border-radius:8px; padding:10px 12px; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="margin:0;">인적공제 합계 (본인 포함)</label>
+                <span class="credit-preview mono" style="margin:0;" id="cp_personalTotal">소득공제 0원</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="margin:0;">자녀·출산입양 세액공제 합계</label>
+                <span class="credit-preview mono" style="margin:0;" id="cp_childTotal">세액공제 0원</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1216,6 +1226,8 @@ function render(){
   document.getElementById('cp_numElderly').textContent = '소득공제 ' + fmt(inp.numElderly * 1000000);
   document.getElementById('cp_numDisabled').textContent = '소득공제 ' + fmt(inp.numDisabled * 2000000);
   document.getElementById('cp_birthAdopt').textContent = '세액공제 ' + fmt(r.childBreak.birthCredit);
+  document.getElementById('cp_personalTotal').textContent = '소득공제 ' + fmt(r.personalDeduction);
+  document.getElementById('cp_childTotal').textContent = '세액공제 ' + fmt(r.childCredit);
 
   document.getElementById('cp_insuranceGeneral').textContent = '세액공제 ' + fmt(r.insuranceGeneralCredit);
   document.getElementById('cp_insuranceDisabled').textContent = '세액공제 ' + fmt(r.insuranceDisabledCredit);
