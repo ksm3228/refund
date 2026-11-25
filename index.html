@@ -244,7 +244,7 @@ input,select{font-family:inherit;}
 .save-msg{text-align:center; font-size:12px; color:var(--jade); padding:0 22px 14px; margin-top:-10px; min-height:14px;}
 
 /* ---------- History ---------- */
-.history{margin-top:26px;}
+.history{margin:0 0 22px;}
 .history h2{color:#fff; font-size:16px; margin:0 0 12px 2px;}
 .history-card{
   background:#fff; border-radius:var(--radius); padding:18px 20px 6px;
@@ -252,10 +252,11 @@ input,select{font-family:inherit;}
   border:1px solid #e7e6df;
 }
 .history-row{
-  display:grid; grid-template-columns: 70px 1fr 110px 110px; gap:12px; align-items:center;
+  display:grid; grid-template-columns: 120px 1fr 90px 120px; gap:12px; align-items:center;
   padding:10px 0; border-bottom:1px solid #f0efe8; font-size:13px;
 }
 .history-row:last-child{border-bottom:none;}
+.history-row .yr small{display:block; font-weight:400; font-size:10.5px; color:var(--muted); font-family:inherit;}
 .history-row .yr{font-weight:700; color:var(--navy); font-family:'JetBrains Mono',monospace;}
 .bar-track{height:8px; background:#eef0e6; border-radius:5px; overflow:hidden;}
 .bar-fill{height:100%; border-radius:5px;}
@@ -291,7 +292,7 @@ input,select{font-family:inherit;}
     <div class="brand">
       <div class="mark">稅</div>
       <div>
-        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.0</span></h1>
+        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.1</span></h1>
         <span>13월의 월급, 미리 계산해보기</span>
       </div>
     </div>
@@ -306,6 +307,13 @@ input,select{font-family:inherit;}
     <div class="save-reminder">수정 후 저장하기를 클릭해야 내역이 저장됩니다!</div>
     <button class="btn btn-save" id="saveBtn">이 연도 저장하기</button>
     <div class="save-msg" id="saveMsg"></div>
+  </div>
+
+  <div class="history">
+    <h2>연도별 비교 <span style="font-weight:400;font-size:12px;opacity:.7;">(실제 환급·납부 시점 기준)</span></h2>
+    <div class="history-card">
+      <div id="historyList"><div class="history-empty">저장된 연도 데이터가 없습니다.</div></div>
+    </div>
   </div>
 
   <div class="layout">
@@ -695,13 +703,6 @@ input,select{font-family:inherit;}
           </div>
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="history">
-    <h2>연도별 비교</h2>
-    <div class="history-card">
-      <div id="historyList"><div class="history-empty">저장된 연도 데이터가 없습니다.</div></div>
     </div>
   </div>
 
@@ -1383,9 +1384,9 @@ function renderHistoryBars(){
     const isRefund = h.diff <= 0;
     const pct = Math.min(100, (Math.abs(h.diff) / maxAbs) * 100);
     const liveTag = (h.year === String(state.year) && !historyCache.some(c => c.year === h.year))
-      ? ' <span style="font-weight:400;opacity:.6;">(미저장)</span>' : '';
+      ? ' · 미저장' : '';
     return `<div class="history-row">
-        <div class="yr">${h.year}${liveTag}</div>
+        <div class="yr">${Number(h.year) + 1}<small>${h.year}년 귀속${liveTag}</small></div>
         <div class="bar-track"><div class="bar-fill ${isRefund ? 'refund' : 'due'}" style="width:${pct}%"></div></div>
         <div class="amt ${isRefund ? 'refund' : 'due'}">${isRefund ? '환급' : '납부'}</div>
         <div class="amt ${isRefund ? 'refund' : 'due'}">${fmt(Math.abs(h.diff))}</div>
