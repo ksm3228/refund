@@ -274,6 +274,9 @@ input,select{font-family:inherit;}
 .past-note{font-size:11px; color:var(--muted); margin-top:8px;}
 .history-chart{margin:0 auto 8px; max-width:760px;}
 .history-chart svg{width:100%; height:auto; display:block;}
+.field.dropped{border-left:3px solid #2f9e70; background:#effaf4; border-radius:8px; padding:6px 8px 6px 10px;}
+.dropped-note{font-size:11.5px; font-weight:700; color:#1f7a55;}
+.dropped-summary{margin:0 0 16px; padding:9px 14px; border-radius:10px; background:#effaf4; border:1px solid #bfe6d2; color:#1f7a55; font-size:12.5px; font-weight:600;}
 .history-empty{color:var(--muted); font-size:13px; padding:16px 0; text-align:center;}
 .disclaimer{
   color:#aab0c9; font-size:11.5px; line-height:1.7; text-align:center; margin-top:26px; padding:0 12px;
@@ -301,7 +304,7 @@ input,select{font-family:inherit;}
     <div class="brand">
       <div class="mark">稅</div>
       <div>
-        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.3</span></h1>
+        <h1>연말정산 계산기 <span class="ver mono" id="appVersion">v4.4</span></h1>
         <span>13월의 월급, 미리 계산해보기</span>
       </div>
     </div>
@@ -317,6 +320,7 @@ input,select{font-family:inherit;}
     <button class="btn btn-save" id="saveBtn">이 연도 저장하기</button>
     <div class="save-msg" id="saveMsg"></div>
   </div>
+  <div class="dropped-summary" id="droppedSummary" hidden></div>
 
   <div class="history">
     <h2>연도별 비교 <span style="font-weight:400;font-size:12px;opacity:.7;">(실제 환급·납부 시점 기준)</span></h2>
@@ -1237,6 +1241,7 @@ function render(){
 
   liveDiff = r.diff;
   renderHistoryBars();
+  updateDropped(inp);
 
   return { inp, r };
 }
@@ -1304,7 +1309,57 @@ async function loadYear(year){
     console.error('[YEAREND-TAX] loadYear error:', e.code, e.message);
     clearForm();
   }
+  try {
+    const ps = await docRef(year - 1).get();
+    prevInput = ps.exists ? (ps.data().input || null) : null;
+  } catch(e){
+    prevInput = null;
+  }
   render();
+}
+
+/* 전년 대비 0이 된 항목 초록색 표시 */
+let prevInput = null;
+const DROP_SKIP = ['houseCount','mortgageLimitType'];
+const DROP_ELEM = { nationalPension:'npManual', healthInsurance:'hiManual' };
+function dropText(key, prevVal){
+  if (typeof prevVal === 'boolean') return '전년 체크됨 → 해제';
+  if (NUMBER_IDS.includes(key)) return '전년 ' + prevVal + ' → 0';
+  if (key === 'birthAdopt'){
+    const o = document.querySelector('#birthAdopt option[value="' + prevVal + '"]');
+    return '전년 ' + (o ? o.textContent.trim() : prevVal) + ' → 없음';
+  }
+  return '전년 ' + fmt(prevVal) + ' → 0원';
+}
+function updateDropped(inp){
+  document.querySelectorAll('.field.dropped').forEach(f => {
+    f.classList.remove('dropped');
+    f.querySelectorAll('.dropped-note').forEach(n => n.remove());
+  });
+  const sum = document.getElementById('droppedSummary');
+  if (!prevInput){ sum.hidden = true; return; }
+  const entered = Object.keys(inp).some(k => !DROP_SKIP.includes(k) && (inp[k] === true || (typeof inp[k] === 'number' && inp[k] > 0)));
+  if (!entered){ sum.hidden = true; return; }
+  let count = 0;
+  Object.keys(prevInput).forEach(key => {
+    if (DROP_SKIP.includes(key) || !(key in inp)) return;
+    const pv = prevInput[key], cv = inp[key];
+    const dropped = (pv === true && cv === false) || (typeof pv === 'number' && pv > 0 && cv === 0);
+    if (!dropped) return;
+    const el = document.getElementById(DROP_ELEM[key] || key);
+    const field = el && el.closest('.field');
+    if (!field) return;
+    count++;
+    field.classList.add('dropped');
+    const note = document.createElement('div');
+    note.className = 'dropped-note';
+    note.textContent = '▼ ' + dropText(key, pv);
+    field.appendChild(note);
+  });
+  if (count){
+    sum.hidden = false;
+    sum.textContent = '전년(' + (state.year - 1) + '년 귀속) 대비 0이 된 항목 ' + count + '개 — 해당 칸이 초록색으로 표시됩니다.';
+  } else sum.hidden = true;
 }
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
